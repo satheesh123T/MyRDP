@@ -98,6 +98,40 @@ jobs:
           }
           Write-Host "TCP connectivity successful!"
 
+      - name: Publish RDP Credentials
+        run: |
+          # Extract password from RDP_CREDS env var
+          $creds = $env:RDP_CREDS
+          $password = ($creds -split 'Password: ')[1]
+          
+          # Write credentials to a JSON file for artifact download
+          $credJson = @{
+              ip = $env:TAILSCALE_IP
+              username = "RDP"
+              password = $password
+              timestamp = (Get-Date -Format "yyyy-MM-dd HH:mm:ss UTC")
+          } | ConvertTo-Json
+          
+          New-Item -Path "rdp-creds" -ItemType Directory -Force
+          $credJson | Out-File -FilePath "rdp-creds/credentials.json" -Encoding UTF8
+          
+          # Also write to Job Summary (visible via API)
+          @"
+          ### 🖥️ RDP Access Details
+          | Field | Value |
+          |-------|-------|
+          | **IP Address** | ``$($env:TAILSCALE_IP)`` |
+          | **Username** | ``RDP`` |
+          | **Password** | ``$password`` |
+          "@ >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload Credentials Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdp-credentials
+          path: rdp-creds/
+          retention-days: 1
+
       - name: Maintain Connection
         run: |
           Write-Host "`n=== RDP ACCESS ==="
